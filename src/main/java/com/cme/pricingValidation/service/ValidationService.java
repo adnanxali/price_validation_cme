@@ -7,105 +7,181 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ValidationService {
     public static final Logger logger =LoggerFactory.getLogger(ValidationService.class);
-    private boolean isInteger(String value){
-        try{
-            Integer.parseInt(value);
-            return true;
-        }catch (NumberFormatException e){
-            return false;
-        }
-    }
-    private boolean isDouble(String value){
-        try{
-            Double.parseDouble(value);
-            return true;
-        }catch (NumberFormatException e){
-            return false;
-        }
-    }
-    private boolean isValidDate(String dateStr, String format) {
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
-            LocalDate.parse(dateStr, formatter);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    private static final Set<String> ValidExchanges = Set.of("CME", "NYMEX", "CBOT", "COMEX");
+    private static final Set<String> ValidProductTypes = Set.of("FUT","OPT");
+    private static final DateTimeFormatter validDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     public List<ValidationResult> validateAll(List<PriceRecord> records) {
-        logger.info("Starting to validate the Records ");
-        Map<String,Integer> seen = new HashMap<>();
+        logger.info("Starting to validate the Records ",records.size());
         List<ValidationResult> result = new ArrayList<>();
 
-        logger.info("Checking for missing Values");
-        for (int i = 0; i < records.size(); i++) {
-            List<String> errors = new ArrayList<>();
-            PriceRecord r = records.get(i);
-            if (r.getInstrumentGuid() == null || r.getInstrumentGuid().isBlank()) {
-                errors.add("Missing Guid at row " + i);
-            }
-            if (r.getPrice() == null || r.getPrice().isBlank()) {
-                errors.add("Missing price at row " + i);
-            }
-            if (r.getExchange() == null || r.getExchange().isBlank()) {
-                errors.add("Missing exchange at row " + i);
-            }
-            if (r.getTradeDate() == null || r.getTradeDate().isBlank()) {
-                errors.add("Missing trade_date at row " + i);
-            }
-            if (r.getProductType() == null || r.getProductType().isBlank()) {
-                errors.add("Missing product_type at row " + i);
-            }
-
-            //Checking for Invalid Data
-
-
-
-            logger.info("Checking for Duplicate Values ");
-            // duplicate check
-            String key = r.getInstrumentGuid() + "|" + r.getTradeDate();
-            if (seen.containsKey(key)) {
-                errors.add("Duplicate record at row " + seen.get(key) + " and " + i);
-            } else {
-                seen.put(key, i);
-            }
+        for(int i=0;i<records.size();i++){
+            PriceRecord rec = records.get(i);
+            List<String> errors = validateSingleRecord(rec,i+1);
             boolean valid = errors.isEmpty();
-            logger.debug("Adding result to result array ",result);
-            result.add(new ValidationResult(r, valid, errors));
+            result.add(new ValidationResult(rec,valid,errors));
         }
+        detectDuplicates(result);
 
-        logger.info("Returning Results of Validation");
         return result;
+
     }
-    public List<String> validateRecord(PriceRecordEntity record) {
+    public List<String> validateSingleRecord(PriceRecord record, int rowNumber){
         List<String> errors = new ArrayList<>();
 
-
-        if (record.getPrice() == null || record.getPrice().isBlank())
-            errors.add("Missing price at Row"+ record.getRowNumber());
-        else {
-            try { Double.parseDouble(record.getPrice()); }
-            catch (NumberFormatException e) { errors.add("Invalid price format at Row " +record.getRowNumber()); }
+        if (record.getInstrumentGuid() == null || record.getInstrumentGuid().isBlank()) {
+            errors.add("Missing instrument_guid at row " + rowNumber);
         }
 
-        if (record.getExchange() == null || record.getExchange().isBlank())
-            errors.add("Missing exchange at Row "+record.getRowNumber());
+        if (record.getTradeDate() == null || record.getTradeDate().isBlank()) {
+            errors.add("Missing trade_date at row " + rowNumber);
+        }
 
-        if (record.getProductType() == null || record.getProductType().isBlank())
-            errors.add("Missing product type at Row "+record.getRowNumber());
+        if (record.getExchange() == null || record.getExchange().isBlank()) {
+            errors.add("Missing exchange at row " + rowNumber);
+        }
 
-        if (record.getTradeDate() == null || record.getTradeDate().isBlank())
-            errors.add("Missing Trade Date at Row "+record.getTradeDate());
+        if (record.getProductType() == null || record.getProductType().isBlank()) {
+            errors.add("Missing product_type at row " + rowNumber);
+        }
+
+
+        if (record.getPrice() == null || record.getPrice().isBlank()) {
+            errors.add("Missing price at row " + rowNumber);
+        } else {
+
+            if (!isValidPrice(record.getPrice())) {
+                errors.add("Invalid price format at row " + rowNumber + ": '" + record.getPrice() + "'");
+            } else {
+
+                try {
+                    BigDecimal priceValue = new BigDecimal(record.getPrice());
+                    if (priceValue.compareTo(BigDecimal.ZERO) <= 0) {
+                        errors.add("Price must be positive at row " + rowNumber + ": " + record.getPrice());
+                    }
+                } catch (NumberFormatException e) {
+                    errors.add("Invalid price format at row " + rowNumber + ": '" + record.getPrice() + "'");
+                }
+            }
+        }
+
+
+        if (record.getInstrumentGuid() != null && !record.getInstrumentGuid().isBlank()) {
+            if (!isInteger(record.getInstrumentGuid())) {
+                errors.add("Invalid instrument_guid format at row " + rowNumber +
+                        " (must be numeric): '" + record.getInstrumentGuid() + "'");
+            }
+        }
+
+
+        if (record.getTradeDate() != null && !record.getTradeDate().isBlank()) {
+
+            if (!isValidDate(record.getTradeDate())) {
+                errors.add("Invalid trade_date format at row " + rowNumber +
+                        " (expected yyyy-MM-dd): '" + record.getTradeDate() + "'");
+            } else {
+
+                try {
+                    LocalDate tradeDate = LocalDate.parse(record.getTradeDate(), validDateFormat);
+                    if (tradeDate.isAfter(LocalDate.now())) {
+                        errors.add("Trade date cannot be in future at row " + rowNumber + ": " + record.getTradeDate());
+                    }
+                } catch (DateTimeException e) {
+
+                    errors.add("Invalid trade_date at row " + rowNumber+e.getMessage());
+                }
+            }
+        }
+
+        if (record.getExchange() != null && !record.getExchange().isBlank()) {
+            String exchange = record.getExchange().toUpperCase().trim();
+            if (!ValidExchanges.contains(exchange)) {
+                errors.add("Invalid exchange at row " + rowNumber +
+                        ": '" + record.getExchange() + "'. Must be one of: " + ValidExchanges);
+            }
+        }
+
+        if (record.getProductType() != null && !record.getProductType().isBlank()) {
+            String productType = record.getProductType().toUpperCase().trim();
+            if (!ValidProductTypes.contains(productType)) {
+                errors.add("Invalid product_type at row " + rowNumber +
+                        ": '" + record.getProductType() + "'. Must be one of: " + ValidProductTypes);
+            }
+        }
 
         return errors;
     }
+
+    private void detectDuplicates(List<ValidationResult> results) {
+        logger.info("Checking for duplicate records");
+
+        Map<String, List<Integer>> recordGroups = new HashMap<>();
+
+        for (int i = 0; i < results.size(); i++) {
+            ValidationResult result = results.get(i);
+            PriceRecord record = result.getPriceRecord();
+
+
+            String key = String.join("|",
+                    nullSafe(record.getInstrumentGuid()),
+                    nullSafe(record.getTradeDate()),
+                    nullSafe(record.getPrice()),
+                    nullSafe(record.getExchange()),
+                    nullSafe(record.getProductType())
+            );
+            recordGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(i);
+        }
+
+
+        int duplicateGroupsFound = 0;
+        for (Map.Entry<String, List<Integer>> entry : recordGroups.entrySet()) {
+            List<Integer> indices = entry.getValue();
+            if (indices.size() > 1) {
+                duplicateGroupsFound++;
+
+                String rowNumbers = indices.stream()
+                        .map(idx -> String.valueOf(idx + 1))
+                        .collect(Collectors.joining(", "));
+
+                String errorMessage = "Duplicate record found at rows: " + rowNumbers;
+
+                for (Integer index : indices) {
+                    ValidationResult result = results.get(index);
+                    result.getErrors().add(errorMessage);
+                    result.setIfValid(false);
+                }
+            }
+        }
+
+        logger.info("Found {} duplicate groups", duplicateGroupsFound);
+    }
+
+    public List<String> validateRecord(PriceRecordEntity record) {
+        logger.debug("Validating entity record ID:",record.getId());
+
+        PriceRecord rec = new PriceRecord(
+                record.getInstrumentGuid(),
+                record.getTradeDate(),
+                record.getPrice(),
+                record.getExchange(),
+                record.getProductType()
+        );
+        List<String> errors = validateSingleRecord(rec,record.getRowNumber()==null?0:record.getRowNumber());
+
+        return errors;
+    }
+
     public Map<String,Object> summary(List<ValidationResult> result){
         long valid  = result.stream().filter(ValidationResult::getIfValid).count();
         long invalid = result.size()-valid;
@@ -120,6 +196,41 @@ public class ValidationService {
         sum.put("Errors",totalErrors);
 
         return sum;
+    }
+    private boolean isInteger(String value) {
+        if (value == null || value.isBlank()) return false;
+        try {
+            Integer.parseInt(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private boolean isValidPrice(String value) {
+        if (value == null || value.isBlank()) return false;
+        try {
+            new BigDecimal(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+    private boolean isValidDate(String dateStr) {
+        if (dateStr == null || dateStr.isBlank()) return false;
+
+        try {
+
+            LocalDate.parse(dateStr, validDateFormat);
+            return true;
+
+        } catch (DateTimeException e) {
+            return false;
+        }
+    }
+
+    private String nullSafe(String value) {
+        return value != null ? value : "";
     }
 
 }

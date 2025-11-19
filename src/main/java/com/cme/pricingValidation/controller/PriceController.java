@@ -21,6 +21,12 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pricing")
+@CrossOrigin(
+        origins = {"http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"},
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS},
+        allowedHeaders = "*",
+        allowCredentials = "true"
+)
 public class PriceController {
     private static final Logger logger = LoggerFactory.getLogger(PriceController.class);
 
@@ -62,7 +68,7 @@ public class PriceController {
         }
     }
     @PostMapping("/validate-json")
-    public ResponseEntity<?> validateJson(@RequestParam List<PriceRecord> records){
+    public ResponseEntity<?> validateJson(@RequestBody List<PriceRecord> records){
         List<ValidationResult> result = validationService.validateAll(records);
         Map<String,Object> summary = validationService.summary(result);
 

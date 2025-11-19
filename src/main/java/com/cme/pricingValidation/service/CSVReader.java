@@ -28,10 +28,10 @@ public class CSVReader {
                 if(line.trim().isEmpty()) continue;
                 String[] tokens = line.split(",",-1);
                 String guid = tokens.length >0 ? tokens[0].trim():"";
-                String tradeDate = tokens.length > 0 ? tokens[1].trim():"";
-                String price = tokens.length > 0 ? tokens[2].trim():"";
-                String exchange = tokens.length > 0 ? tokens[3].trim():"";
-                String productType = tokens.length > 0 ? tokens[4].trim():"";
+                String tradeDate = tokens.length > 1 ? tokens[1].trim():"";
+                String price = tokens.length > 2 ? tokens[2].trim():"";
+                String exchange = tokens.length > 3 ? tokens[3].trim():"";
+                String productType = tokens.length > 4 ? tokens[4].trim():"";
                 records.add(new PriceRecord(guid,tradeDate,price,exchange,productType));
 
             }
