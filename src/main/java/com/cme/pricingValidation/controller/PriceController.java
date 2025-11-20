@@ -52,6 +52,13 @@ public class PriceController {
             int rowNumber=1;
             for(ValidationResult r : result){
                 PriceRecord rec = r.getPriceRecord();
+                boolean isDuplicate = r.getErrors().stream().anyMatch(msg->msg.startsWith("Duplicate Record of Row"));
+                if(isDuplicate){
+
+                    logger.debug("Duplicate Detected Skipping this record");
+                    continue;
+                }
+
                 PriceRecordEntity entity = new PriceRecordEntity(
                     rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange(),rec.getProductType(),
                         rowNumber++,r.getIfValid(),String.join(",",r.getErrors())
@@ -74,19 +81,20 @@ public class PriceController {
 
         repository.deleteAll();
         int row=1;
-        for(ValidationResult r:result){
-            PriceRecord rc = r.getPriceRecord();
-            PriceRecordEntity e = new PriceRecordEntity(
-                    rc.getInstrumentGuid(),
-                    rc.getTradeDate(),
-                    rc.getPrice(),
-                    rc.getExchange(),
-                    rc.getProductType(),
-                    row++,
-                    r.getIfValid(),
-                    String.join(",",r.getErrors())
+        for(ValidationResult r : result){
+            PriceRecord rec = r.getPriceRecord();
+            boolean isDuplicate = r.getErrors().stream().anyMatch(msg->msg.startsWith("Duplicate Record of Row"));
+            if(isDuplicate){
+
+                logger.debug("Duplicate Detected Skipping this record");
+                continue;
+            }
+
+            PriceRecordEntity entity = new PriceRecordEntity(
+                    rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange(),rec.getProductType(),
+                    row++,r.getIfValid(),String.join(",",r.getErrors())
             );
-            repository.save(e);
+            repository.save(entity);
         }
         return ResponseEntity.ok(Map.of("summary",summary,"result",result));
     }
@@ -109,11 +117,18 @@ public class PriceController {
         return repository.findById(id).map(val ->{
             if(p.getInstrumentGuid()!=null) val.setInstrumentGuid(p.getInstrumentGuid());
             if(p.getPrice()!=null) val.setPrice(p.getPrice());
-            if(p.getExchange()!=null) val.setInstrumentGuid(p.getInstrumentGuid());
+            if(p.getExchange()!=null) val.setExchange(p.getExchange());
             if(p.getProductType()!=null) val.setProductType(p.getProductType());
             if(p.getTradeDate()!=null) val.setTradeDate(p.getTradeDate());
 
             List<String> newErrors = validationService.validateRecord(val);
+
+            if(canBeDuplicate(val)){
+                return ResponseEntity.badRequest().body(
+                        Map.of("error","This action will create a duplicate record")
+                );
+            }
+
             val.setValid(newErrors.isEmpty());
             val.setErrors(newErrors.isEmpty()?null:String.join(",",newErrors));
 
@@ -155,5 +170,15 @@ public class PriceController {
         );
     }
 
+    private boolean canBeDuplicate(PriceRecordEntity e){
+        List<PriceRecordEntity> same = repository.findByInstrumentGuidAndTradeDateAndPriceAndExchangeAndProductType(
+                e.getInstrumentGuid(),
+                e.getTradeDate(),
+                e.getPrice(),
+                e.getExchange(),
+                e.getProductType()
+        );
+        return same.stream().anyMatch(k -> !k.getId().equals(e.getId()));
+    }
 
 }

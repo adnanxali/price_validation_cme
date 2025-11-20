@@ -10,4 +10,11 @@ import java.util.List;
 public interface PriceRecordRepository extends JpaRepository<PriceRecordEntity,Long> {
     List<PriceRecordEntity> findByValidFalse();
     List<PriceRecordEntity> findByValidTrue();
+    List<PriceRecordEntity> findByInstrumentGuidAndTradeDateAndPriceAndExchangeAndProductType(
+            String instrumentGuid,
+            String tradeDate,
+            String price,
+            String exchange,
+            String productType
+    );
 }

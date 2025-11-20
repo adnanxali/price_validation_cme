@@ -150,17 +150,22 @@ public class ValidationService {
             if (indices.size() > 1) {
                 duplicateGroupsFound++;
 
-                String rowNumbers = indices.stream()
-                        .map(idx -> String.valueOf(idx + 1))
-                        .collect(Collectors.joining(", "));
+                Collections.sort(indices);
 
-                String errorMessage = "Duplicate record found at rows: " + rowNumbers;
+                int origIdx = indices.get(0);
+                int origRow = origIdx+1;
+                for(int i=1;i<indices.size();i++){
+                    int dupIdx = indices.get(i);
+                    int dupRow = dupIdx+1;
+                    ValidationResult dupRec= results.get(dupIdx);
 
-                for (Integer index : indices) {
-                    ValidationResult result = results.get(index);
-                    result.getErrors().add(errorMessage);
-                    result.setIfValid(false);
+                    String errorMsg = "Duplicate Record of Row "+origRow +" at "+dupRow;
+
+                    dupRec.getErrors().add(errorMsg);
+                    dupRec.setIfValid(false);
+
                 }
+
             }
         }
 
@@ -181,6 +186,7 @@ public class ValidationService {
 
         return errors;
     }
+    
 
     public Map<String,Object> summary(List<ValidationResult> result){
         long valid  = result.stream().filter(ValidationResult::getIfValid).count();
