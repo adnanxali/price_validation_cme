@@ -71,6 +71,9 @@ public class ValidationService {
                     if (priceValue.compareTo(BigDecimal.ZERO) <= 0) {
                         errors.add("Price must be positive at row " + rowNumber + ": " + record.getPrice());
                     }
+                    if (priceValue.scale()>=3){
+                        errors.add("Price must be rounded to 3 decimal places eg: 123.333 : "+record.getPrice());
+                    }
                 } catch (NumberFormatException e) {
                     errors.add("Invalid price format at row " + rowNumber + ": '" + record.getPrice() + "'");
                 }
