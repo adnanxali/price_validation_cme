@@ -49,6 +49,7 @@ public class ValidationService {
         }
 
         if (record.getExchange() == null || record.getExchange().isBlank()) {
+
             errors.add("Missing exchange at row " + rowNumber);
         }
 
@@ -118,6 +119,9 @@ public class ValidationService {
                 errors.add("Invalid product_type at row " + rowNumber +
                         ": '" + record.getProductType() + "'. Must be one of: " + ValidProductTypes);
             }
+        }
+        if (!errors.isEmpty()) {
+            logger.debug("Row {} is invalid with errors: {}", rowNumber, errors);
         }
 
         return errors;
