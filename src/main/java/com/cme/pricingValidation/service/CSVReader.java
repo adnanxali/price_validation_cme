@@ -19,12 +19,33 @@ public class CSVReader {
 
         List<PriceRecord> records = new ArrayList<>();
         try(BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream(),StandardCharsets.UTF_8))) {
+            String headerLine = br.readLine();
+            if (headerLine == null) {
+                logger.warn("CSV file {} is empty", file.getOriginalFilename());
+                throw new IllegalArgumentException("CSV file is empty");
+            }
+            String[] headerTokens = headerLine.split(",", -1);
+            for (int i = 0; i < headerTokens.length; i++) {
+                headerTokens[i] = headerTokens[i].trim();
+            }
+
+            int guidIdx = findColumnIndex(headerTokens, "instrumentGuid", "instrument_guid");
+            int tradeDateIdx = findColumnIndex(headerTokens, "tradeDate", "trade_date");
+            int priceIdx = findColumnIndex(headerTokens, "price");
+            int exchangeIdx = findColumnIndex(headerTokens, "exchange");
+            int productTypeIdx = findColumnIndex(headerTokens, "productType", "product_type");
+
+            if (guidIdx == -1 || tradeDateIdx == -1 || priceIdx == -1
+                    || exchangeIdx == -1 || productTypeIdx == -1) {
+
+                logger.error("CSV headers missing required columns. Found headers: {}", String.join(",", headerTokens));
+                throw new IllegalArgumentException(
+                        "CSV must contain headers: instrumentGuid, tradeDate, price, exchange, productType"
+                );
+            }
             String line;
-            logger.debug("Skipping the headers");
-            boolean headers = true;
-            logger.info("Parsing the file into tokens ");
+
             while ((line = br.readLine())!= null){
-                if(headers){headers = false; continue;}
                 if(line.trim().isEmpty()) continue;
                 String[] tokens = line.split(",",-1);
                 String guid = tokens.length >0 ? tokens[0].trim():"";
@@ -39,6 +60,17 @@ public class CSVReader {
         logger.info("Completed Parsing returning Records ");
         return records;
 
+    }
+    private int findColumnIndex(String[] headers, String... possibleNames) {
+        for (int i = 0; i < headers.length; i++) {
+            String h = headers[i].trim().toLowerCase();
+            for (String name : possibleNames) {
+                if (h.equals(name.toLowerCase())) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
 }

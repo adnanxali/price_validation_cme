@@ -26,7 +26,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/pricing")
 @CrossOrigin(
-        origins = {"http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"},
+        origins = {"http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000","https://price-validation-cme-frontend.vercel.app"},
         methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS},
         allowedHeaders = "*",
         allowCredentials = "true"
@@ -64,7 +64,7 @@ public class PriceController {
                 }
 
                 PriceRecordEntity entity = new PriceRecordEntity(
-                    rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange(),rec.getProductType(),
+                    rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange().toUpperCase(),rec.getProductType().toUpperCase(),
                         rowNumber++,r.getIfValid(),String.join(",",r.getErrors())
                 );
                 repository.save(entity);
@@ -97,7 +97,7 @@ public class PriceController {
             }
 
             PriceRecordEntity entity = new PriceRecordEntity(
-                    rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange(),rec.getProductType(),
+                    rec.getInstrumentGuid(),rec.getTradeDate(),rec.getPrice(),rec.getExchange().toUpperCase(),rec.getProductType().toUpperCase(),
                     row++,r.getIfValid(),String.join(",",r.getErrors())
             );
             logger.info("Record Saved ");

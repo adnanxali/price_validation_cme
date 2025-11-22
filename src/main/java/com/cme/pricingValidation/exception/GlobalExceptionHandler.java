@@ -114,6 +114,19 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArguments(IllegalArgumentException ex, HttpServletRequest request){
+        log.error("Illegal Arguments on {}: ",request.getRequestURI(),ex);
+        ErrorResponse body = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.FORBIDDEN.value(),
+                "Illegal Argument Error",
+                ex.getMessage(),
+                request.getRequestURI()
+
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
 
     // 🔹 Fallback for any unhandled exception
     @ExceptionHandler(Exception.class)
