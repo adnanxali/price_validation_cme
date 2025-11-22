@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -112,6 +113,8 @@ public class PriceController {
     public ResponseEntity<?> getRecordsById(@PathVariable Long id){
         return repository.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
+    @GetMapping("/errors")
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateRecordsById(@PathVariable Long id, @RequestBody PriceRecordEntity p){
         return repository.findById(id).map(val ->{
@@ -159,6 +162,12 @@ public class PriceController {
     @GetMapping("/summary")
     public Map<String,Object> getSummary(){
         List<PriceRecordEntity> allRecords = repository.findAll();
+        List<PriceRecordEntity> p = repository.findByValidFalse();
+        List<String> allErrors = new ArrayList<>();
+        for(PriceRecordEntity r:p){
+            allErrors.add(r.getErrors());
+        }
+
         long total = allRecords.size();
         long valid = allRecords.stream().filter(PriceRecordEntity::isValid).count();
         long invalid = total-valid;
@@ -167,7 +176,7 @@ public class PriceController {
 
         return Map.of(
                 "total",total,"valid",valid,"invalid",invalid,"invalidRows",invalidRows
-        );
+        ,"errors",allErrors);
     }
 
     private boolean canBeDuplicate(PriceRecordEntity e){
